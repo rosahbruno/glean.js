@@ -23,10 +23,6 @@ export interface DistributionData {
  *
  * Utility function for testing.
  *
- * **Caution**
- * This cannot use `Histogram.snapshot_values` and needs to use the more
- * specialized snapshot function.
- *
  * @param hist Histogram to get the snapshot of.
  * @returns Snapshot of the current histogram.
  */
