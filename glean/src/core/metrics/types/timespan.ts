@@ -4,11 +4,12 @@
 
 import type { CommonMetricData} from "../index.js";
 import type { JSONValue} from "../../utils.js";
+import type { MetricValidationResult } from "../metric.js";
+
 import { isInteger} from "../../utils.js";
 import TimeUnit from "../time_unit.js";
 import { MetricType } from "../index.js";
 import { isString, isObject, isUndefined, getMonotonicNow, testOnlyCheck } from "../../utils.js";
-import type { MetricValidationResult } from "../metric.js";
 import { MetricValidation , MetricValidationError} from "../metric.js";
 import { Metric } from "../metric.js";
 import { Context } from "../../context.js";
@@ -125,7 +126,7 @@ export class InternalTimespanMetricType extends MetricType {
   }
 
   /**
-   * An implemention of `setRaw` that does not dispatch the recording task.
+   * An implementation of `setRaw` that does not dispatch the recording task.
    *
    * # Important
    *

@@ -3,10 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import type { CommonMetricData } from "../index.js";
+import type { MetricValidationResult } from "../metric.js";
+import type MetricsDatabaseSync from "../database/sync.js";
+
 import { MetricType } from "../index.js";
 import TimeUnit from "../../metrics/time_unit.js";
 import { Context } from "../../context.js";
-import type { MetricValidationResult } from "../metric.js";
 import { MetricValidationError } from "../metric.js";
 import { Metric, MetricValidation } from "../metric.js";
 import { isNumber, isObject, isString, testOnlyCheck } from "../../utils.js";
@@ -185,20 +187,20 @@ export class InternalDatetimeMetricType extends MetricType {
     this.timeUnit = timeUnit as TimeUnit;
   }
 
-  /**
-   * An implemention of `set` that does not dispatch the recording task.
-   *
-   * # Important
-   *
-   * This method should **never** be exposed to users.
-   *
-   * @param value The date we want to set to.
-   */
-  async setUndispatched(value?: Date): Promise<void> {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
+  /// SHARED ///
+  set(value?: Date): void {
+    if (Context.isPlatformSync()) {
+      this.setSync(value);
+    } else {
+      this.setAsync(value);
     }
+  }
 
+  // TODO
+  // JSDoc
+  // Unit test
+  // Verify this is working the same as before.
+  private truncateDate(value?: Date) {
     if (!value) {
       value = new Date();
     }
@@ -226,21 +228,57 @@ export class InternalDatetimeMetricType extends MetricType {
       break;
     }
 
+    return truncatedDate;
+  }
+
+  /// ASYNC ///
+  setAsync(value?: Date) {
+    Context.dispatcher.launch(() => this.setUndispatched(value));
+  }
+
+  /**
+   * An implementation of `set` that does not dispatch the recording task.
+   *
+   * # Important
+   *
+   * This method should **never** be exposed to users.
+   *
+   * @param value The date we want to set to.
+   */
+  async setUndispatched(value?: Date): Promise<void> {
+    if (!this.shouldRecord(Context.uploadEnabled)) {
+      return;
+    }
+
+    const truncatedDate = this.truncateDate(value);
     try {
-      const metric = DatetimeMetric.fromDate(value, this.timeUnit);
+      const metric = DatetimeMetric.fromDate(truncatedDate, this.timeUnit);
       await Context.metricsDatabase.record(this, metric);
     } catch(e) {
       if (e instanceof MetricValidationError) {
         await e.recordError(this);
       }
     }
-
   }
 
-  set(value?: Date): void {
-    Context.dispatcher.launch(() => this.setUndispatched(value));
+  /// SYNC ///
+  setSync(value?: Date) {
+    if (!this.shouldRecord(Context.uploadEnabled)) {
+      return;
+    }
+
+    const truncatedDate = this.truncateDate(value);
+    try {
+      const metric = DatetimeMetric.fromDate(truncatedDate, this.timeUnit);
+      (Context.metricsDatabase as MetricsDatabaseSync).record(this, metric);
+    } catch(e) {
+      if (e instanceof MetricValidationError) {
+        e.recordErrorSync(this);
+      }
+    }
   }
 
+  /// TESTING ///
   /**
    * Test-only API
    *

@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import log, { LoggingLevel } from "../../../core/log.js";
-import type { StorageIndex } from "../../../core/storage/index.js";
-import type Store from "../../../core/storage/index.js";
+import type { StorageIndex } from "../../../core/storage/shared.js";
+import type Store from "../../../core/storage/async.js";
 import {
   updateNestedObject,
   getValueFromNestedObject,
