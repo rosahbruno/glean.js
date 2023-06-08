@@ -50,9 +50,9 @@ class InternalBooleanMetricType extends MetricType {
   /// SHARED ///
   set(value: boolean): void {
     if (Context.isPlatformSync()) {
-      this.setAsync(value);
-    } else {
       this.setSync(value);
+    } else {
+      this.setAsync(value);
     }
   }
 

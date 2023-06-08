@@ -288,7 +288,7 @@ export class Context {
   }
 
   static isPlatformSync(): boolean {
-    return Context.instance._platform.name === "web";
+    return Context.instance._platform?.name === "web";
   }
 
   static getSupportedMetric(
