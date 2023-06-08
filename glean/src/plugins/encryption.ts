@@ -5,10 +5,10 @@
 import type { JWK } from "jose";
 import { CompactEncrypt, importJWK, calculateJwkThumbprint } from "jose";
 
-import Plugin from "../index.js";
-import type { PingPayload } from "../../core/pings/ping_payload.js";
-import type { JSONObject } from "../../core/utils.js";
-import CoreEvents from "../../core/events/async.js";
+import Plugin from "./index.js";
+import type { PingPayload } from "../core/pings/ping_payload.js";
+import type { JSONObject } from "../core/utils.js";
+import CoreEvents from "../core/events/async.js";
 
 // These are the chosen defaults, because they are the ones expected by Glean's data pipeline.
 //
@@ -17,6 +17,8 @@ import CoreEvents from "../../core/events/async.js";
 // See: https://searchfox.org/mozilla-central/rev/eeb8cf278192d68b3977d0adb4d43f1463439269/services/crypto/modules/jwcrypto.jsm#58-74
 const JWE_ALGORITHM = "ECDH-ES";
 const JWE_CONTENT_ENCODING = "A256GCM";
+
+// TODO: Determine if we still need this plugin.
 
 /**
  * A plugin that listens for the `afterPingCollection` event and encrypts **all** outgoing pings
