@@ -14,7 +14,7 @@ import {
 } from "../../../core/storage/utils.js";
 
 const LOG_TAG = "platform.web.Storage";
-const STORE_NAME = "Main";
+const STORE_NAME = "Gleanjs";
 
 class WebStore implements SynchronousStore {
   private logTag: string;
