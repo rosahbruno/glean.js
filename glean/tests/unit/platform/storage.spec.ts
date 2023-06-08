@@ -6,16 +6,14 @@ import assert from "assert";
 import sqlite3 from "sqlite3";
 import "fake-indexeddb/auto";
 
-import { firefoxDriver, setupFirefox, webExtensionAPIProxyBuilder } from "./utils/webext";
 import type Store from "../../../src/core/storage/async";
 import type { OptionalAsync } from "../../../src/core/types";
-import type SynchronousStore from "../../../src/core/storage/sync";
+import type { JSONValue } from "../../../src/core/utils";
 
+import { firefoxDriver, setupFirefox, webExtensionAPIProxyBuilder } from "./utils/webext";
 import TestStore from "../../../src/platform/test/storage";
 import QMLStore from "../../../src/platform/qt/storage";
-import WebStore from "../../../src/platform/browser/web/storage";
 import WebExtStore from "../../../src/platform/browser/webext/storage";
-import type { JSONValue } from "../../../src/core/utils";
 import { isUndefined } from "../../../src/core/utils";
 
 /**
