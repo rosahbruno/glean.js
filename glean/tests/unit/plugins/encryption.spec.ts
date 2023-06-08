@@ -9,7 +9,7 @@ import { generateKeyPair, exportJWK, compactDecrypt } from "jose";
 import { InternalPingType as PingType} from "../../../src/core/pings/ping_type";
 import type { JSONObject } from "../../../src/core/utils";
 import { WaitableUploader } from "../../utils";
-import PingEncryptionPlugin from "../../../src/plugins/encryption/async";
+import PingEncryptionPlugin from "../../../src/plugins/encryption";
 import collectAndStorePing from "../../../src/core/pings/maker/async";
 import { makePath } from "../../../src/core/pings/maker/shared";
 import CounterMetricType from "../../../src/core/metrics/types/counter";
