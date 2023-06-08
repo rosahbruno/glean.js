@@ -7,7 +7,9 @@ import sqlite3 from "sqlite3";
 import "fake-indexeddb/auto";
 
 import { firefoxDriver, setupFirefox, webExtensionAPIProxyBuilder } from "./utils/webext";
-import type Store from "../../../src/core/storage";
+import type Store from "../../../src/core/storage/async";
+import type { OptionalAsync } from "../../../src/core/types";
+import type SynchronousStore from "../../../src/core/storage/sync";
 
 import TestStore from "../../../src/platform/test/storage";
 import QMLStore from "../../../src/platform/qt/storage";
@@ -54,7 +56,7 @@ class MockQMLStore extends QMLStore {
 // a function that will initialize and return the store when done.
 const stores: {
   [store: string]: {
-    initializeStore: () => Store | Promise<Store>,
+    initializeStore: () => OptionalAsync<Store> | OptionalAsync<SynchronousStore>,
     before?: () => Promise<void>,
     afterAll?: () => Promise<void>
   }
@@ -70,10 +72,10 @@ const stores: {
     }
   },
   "WebStore": {
-    initializeStore: async (): Promise<WebStore> => {
+    initializeStore: (): WebStore => {
       const store = new WebStore("test");
       // Clear the store before starting.
-      await store.delete([]);
+      store.delete([]);
       return store;
     },
   },
