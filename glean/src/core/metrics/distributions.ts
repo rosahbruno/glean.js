@@ -70,7 +70,7 @@ export function extractAccumulatedValuesFromJsonValue(jsonValue?: JSONValue): nu
  * @returns Count of samples that had a value less than 0.
  */
 export function getNumNegativeSamples(samples: number[]): number {
-  return samples.filter((sample) => sample > 0).length;
+  return samples.filter((sample) => sample < 0).length;
 }
 
 /**

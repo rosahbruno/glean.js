@@ -215,7 +215,7 @@ class InternalTimingDistributionMetricType extends MetricType {
 
       const convertedSamples: number[] = [];
       samples.forEach((sample) => {
-        if (sample > 0) {
+        if (sample >= 0) {
           // Check the range prior to converting the incoming unit to
           // nanoseconds, so we can compare against the constant
           // MAX_SAMPLE_TIME.

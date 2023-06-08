@@ -160,7 +160,7 @@ class InternalCustomDistributionMetricType extends MetricType {
 
       const convertedSamples: number[] = [];
       samples.forEach((sample) => {
-        if (sample > 0) {
+        if (sample >= 0) {
           convertedSamples.push(sample);
         }
       });

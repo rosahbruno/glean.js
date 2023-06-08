@@ -134,7 +134,7 @@ class InternalMemoryDistributionMetricType extends MetricType {
 
       const convertedSamples: number[] = [];
       samples.forEach((sample) => {
-        if (sample > 0) {
+        if (sample >= 0) {
           sample = convertMemoryUnitToBytes(sample, this.memoryUnit as MemoryUnit);
           if (sample > MAX_BYTES) {
             sample = MAX_BYTES;
