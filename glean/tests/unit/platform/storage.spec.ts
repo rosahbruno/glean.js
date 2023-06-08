@@ -52,11 +52,11 @@ class MockQMLStore extends QMLStore {
   }
 }
 
-// This object will contain the store names and
+// This object will contain all the asynchronous store names and
 // a function that will initialize and return the store when done.
-const stores: {
+const asyncStores: {
   [store: string]: {
-    initializeStore: () => OptionalAsync<Store> | OptionalAsync<SynchronousStore>,
+    initializeStore: () => OptionalAsync<Store>,
     before?: () => Promise<void>,
     afterAll?: () => Promise<void>
   }
@@ -70,14 +70,6 @@ const stores: {
       QMLMockDB.close();
       return Promise.resolve();
     }
-  },
-  "WebStore": {
-    initializeStore: (): WebStore => {
-      const store = new WebStore("test");
-      // Clear the store before starting.
-      store.delete([]);
-      return store;
-    },
   },
   "WebExtStore": {
     initializeStore: (): WebExtStore => new WebExtStore("test"),
@@ -93,7 +85,7 @@ const stores: {
           // @ts-ignore
           local: {
             // We need to ignore type checks for the following properties because they do not
-            // match perfectly with what is decribed by out web ext types package.
+            // match perfectly with what is described by out web ext types package.
             // Moreover, it will also complain about not defining the `clear` and `remove`
             // methods, but these are not necessary for our tests.
             //
@@ -115,8 +107,8 @@ const stores: {
   }
 };
 
-for (const store in stores) {
-  const currentStore = stores[store];
+for (const store in asyncStores) {
+  const currentStore = asyncStores[store];
 
   describe(`storage/${store}`, function () {
     after(async function () {
@@ -273,3 +265,26 @@ for (const store in stores) {
     });
   });
 }
+
+// TODO
+// Write tests for the synchronous store. `LocalStorage` does not exist by default,
+// so it needs to be mocked instead, like we do for QML.
+//
+// This object will contain all the synchronous store names and
+// a function that will initialize and return the store when done.
+// const syncStores: {
+//   [store: string]: {
+//     initializeStore: () => SynchronousStore;
+//     before?: () => void;
+//     afterAll?: () => void;
+//   };
+// } = {
+//   WebStore: {
+//     initializeStore: (): WebStore => {
+//       const store = new WebStore("test");
+//       // Clear the store before starting.
+//       store.delete([]);
+//       return store;
+//     }
+//   }
+// };
