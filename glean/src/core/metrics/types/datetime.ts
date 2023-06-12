@@ -16,7 +16,7 @@ import { isNumber, isObject, isString, testOnlyCheck } from "../../utils.js";
 const LOG_TAG = "core.metrics.DatetimeMetricType";
 
 /**
- * Builds the formatted timezone offset string frim a given timezone.
+ * Builds the formatted timezone offset string from a given timezone.
  *
  * The format of the resulting string is `+02:00`.
  *

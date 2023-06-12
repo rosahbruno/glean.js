@@ -36,7 +36,6 @@ class WebStore implements SynchronousStore {
         result = Object.keys(obj).length === 0 ? undefined : obj;
       }
     } catch (err) {
-      // TODO: log
       log(LOG_TAG, ["Unable to fetch value from local storage.", err], LoggingLevel.Error);
     }
 
@@ -77,7 +76,6 @@ class WebStore implements SynchronousStore {
         }
       }
     } catch (err) {
-      // TODO: log
       log(LOG_TAG, ["Unable to delete value from storage.", err], LoggingLevel.Error);
     }
   }

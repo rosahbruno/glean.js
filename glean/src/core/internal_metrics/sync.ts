@@ -2,6 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import type PlatformSync from "../../platform/sync.js";
+import type MetricsDatabaseSync from "../metrics/database/sync.js";
+
 import { KNOWN_CLIENT_ID, CLIENT_INFO_STORAGE } from "../constants.js";
 import { InternalUUIDMetricType as UUIDMetricType } from "../metrics/types/uuid.js";
 import { InternalDatetimeMetricType as DatetimeMetricType } from "../metrics/types/datetime.js";
@@ -12,12 +15,9 @@ import { generateUUIDv4 } from "../utils.js";
 import { Lifetime } from "../metrics/lifetime.js";
 import log, { LoggingLevel } from "../log.js";
 import { Context } from "../context.js";
-import type MetricsDatabaseSync from "../metrics/database/sync.js";
-import type PlatformSync from "../../platform/sync.js";
 
 const LOG_TAG = "core.InternalMetrics";
 
-// TODO: Share code with "./async.ts".
 /**
  * Glean internal metrics.
  *
@@ -128,6 +128,7 @@ export class CoreMetricsSync {
   initialize(): void {
     this.initializeClientId();
     this.initializeFirstRunDate();
+
     this.os.set((Context.platform as PlatformSync).info.os());
     this.osVersion.set((Context.platform as PlatformSync).info.osVersion(Context.config.osVersion));
     this.architecture.set(
