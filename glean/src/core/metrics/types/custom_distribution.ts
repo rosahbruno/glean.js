@@ -8,6 +8,7 @@ import type { DistributionData } from "../distributions";
 import type { MetricValidationResult } from "../metric.js";
 import type MetricsDatabaseSync from "../database/sync.js";
 import type ErrorManagerSync from "../../error/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { Context } from "../../context.js";
 import { Metric, MetricValidation, MetricValidationError } from "../metric.js";
@@ -204,27 +205,29 @@ class InternalCustomDistributionMetricType extends MetricType {
 
   /// SYNC ///
   setSync(samples: number[]) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
-
-    try {
-      (Context.metricsDatabase as MetricsDatabaseSync).transform(this, this.transformFn(samples));
-
-      const numNegativeSamples = getNumNegativeSamples(samples);
-      if (numNegativeSamples > 0) {
-        (Context.errorManager as ErrorManagerSync).record(
-          this,
-          ErrorType.InvalidValue,
-          `Accumulated ${numNegativeSamples} negative samples`,
-          numNegativeSamples
-        );
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
       }
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+
+      try {
+        (Context.metricsDatabase as MetricsDatabaseSync).transform(this, this.transformFn(samples));
+
+        const numNegativeSamples = getNumNegativeSamples(samples);
+        if (numNegativeSamples > 0) {
+          (Context.errorManager as ErrorManagerSync).record(
+            this,
+            ErrorType.InvalidValue,
+            `Accumulated ${numNegativeSamples} negative samples`,
+            numNegativeSamples
+          );
+        }
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
       }
-    }
+    });
   }
 
   /// TESTING ///

@@ -6,6 +6,7 @@ import type { CommonMetricData } from "../index.js";
 import type { MetricValidationResult } from "../metric.js";
 import type { JSONValue } from "../../utils.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { MetricType } from "../index.js";
 import { Context } from "../../context.js";
@@ -151,17 +152,19 @@ class InternalRateMetricType extends MetricType {
 
   /// SYNC ///
   addSync(value: Rate) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
-
-    try {
-      (Context.metricsDatabase as MetricsDatabaseSync).transform(this, this.transformFn(value));
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
       }
-    }
+
+      try {
+        (Context.metricsDatabase as MetricsDatabaseSync).transform(this, this.transformFn(value));
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
+      }
+    });
   }
 
   /// TESTING ///

@@ -6,6 +6,7 @@ import type { CommonMetricData } from "../index.js";
 import type { ExtraMap, Event } from "../events_database/recorded_event.js";
 import type ErrorManagerSync from "../../error/sync.js";
 import type EventsDatabaseSync from "../events_database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { RecordedEvent } from "../events_database/recorded_event.js";
 import { MetricType } from "../index.js";
@@ -50,14 +51,14 @@ export class InternalEventMetricType<
    */
   record(extra?: SpecificExtraMap, timestamp: number = getMonotonicNow()): void {
     if (Context.isPlatformSync()) {
-      this.recordSync(timestamp, extra);
+      this.recordSync(extra, timestamp);
     } else {
-      this.recordAsync(timestamp, extra);
+      this.recordAsync(extra, timestamp);
     }
   }
 
   /// ASYNC ///
-  recordAsync(timestamp: number, extra?: SpecificExtraMap) {
+  recordAsync(extra?: SpecificExtraMap, timestamp: number = getMonotonicNow()) {
     Context.dispatcher.launch(async () => {
       await this.recordUndispatched(extra, timestamp);
     });
@@ -128,7 +129,13 @@ export class InternalEventMetricType<
   }
 
   /// SYNC ///
-  recordSync(timestamp: number, extra?: SpecificExtraMap) {
+  recordSync(extra?: SpecificExtraMap, timestamp: number = getMonotonicNow()) {
+    (Context.dispatcher as DispatcherSync).launch(() =>
+      this.recordUndispatchedSync(extra, timestamp)
+    );
+  }
+
+  recordUndispatchedSync(extra?: SpecificExtraMap, timestamp: number = getMonotonicNow()) {
     if (!this.shouldRecord(Context.uploadEnabled)) {
       return;
     }

@@ -6,6 +6,7 @@ import type { CommonMetricData } from "../index.js";
 import type { JSONValue } from "../../utils.js";
 import type { MetricValidationResult } from "../metric.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { saturatingAdd, isUndefined, testOnlyCheck } from "../../utils.js";
 import { MetricType } from "../index.js";
@@ -115,6 +116,19 @@ export class InternalCounterMetricType extends MetricType {
    * @param amount The amount we want to add.
    */
   addSync(amount?: number) {
+    (Context.dispatcher as DispatcherSync).launch(() => this.addUndispatchedSync(amount));
+  }
+
+  /**
+   * An synchronous implementation of `add` that does not dispatch the recording task.
+   *
+   * # Important
+   *
+   * This method should **never** be exposed to users.
+   *
+   * @param amount The amount we want to add.
+   */
+  addUndispatchedSync(amount?: number) {
     if (!this.shouldRecord(Context.uploadEnabled)) {
       return;
     }

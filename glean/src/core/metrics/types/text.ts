@@ -5,6 +5,7 @@
 import type { CommonMetricData } from "../index.js";
 import type { MetricValidationResult } from "../metric.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import {
   testOnlyCheck,
@@ -83,19 +84,21 @@ class InternalTextMetricType extends MetricType {
 
   /// SYNC ///
   setSync(text: string) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
-
-    try {
-      const truncatedValue = truncateStringAtBoundaryWithErrorSync(this, text, TEXT_MAX_LENGTH);
-      const metric = new TextMetric(truncatedValue);
-      (Context.metricsDatabase as MetricsDatabaseSync).record(this, metric);
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
       }
-    }
+
+      try {
+        const truncatedValue = truncateStringAtBoundaryWithErrorSync(this, text, TEXT_MAX_LENGTH);
+        const metric = new TextMetric(truncatedValue);
+        (Context.metricsDatabase as MetricsDatabaseSync).record(this, metric);
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
+      }
+    });
   }
 
   /// TESTING ///

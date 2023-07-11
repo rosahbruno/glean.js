@@ -7,6 +7,7 @@ import type { JSONValue } from "../../utils.js";
 import type { MetricValidationResult } from "../metric.js";
 import type ErrorManagerSync from "../../error/sync.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { isInteger } from "../../utils.js";
 import TimeUnit from "../time_unit.js";
@@ -303,20 +304,22 @@ export class InternalTimespanMetricType extends MetricType {
     // it is the time this function is called and not the time the task is executed.
     const startTime = getMonotonicNow();
 
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
+      }
 
-    if (!isUndefined(this.startTime)) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidState,
-        "Timespan already started"
-      );
-      return;
-    }
+      if (!isUndefined(this.startTime)) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidState,
+          "Timespan already started"
+        );
+        return;
+      }
 
-    this.startTime = startTime;
+      this.startTime = startTime;
+    });
   }
 
   stopSync(): void {
@@ -324,45 +327,62 @@ export class InternalTimespanMetricType extends MetricType {
     // it is the time this function is called and not the time the task is executed.
     const stopTime = getMonotonicNow();
 
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      // Reset timer when disabled, so that we don't record timespans across
-      // disabled/enabled toggling.
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        // Reset timer when disabled, so that we don't record timespans across
+        // disabled/enabled toggling.
+        this.startTime = undefined;
+        return;
+      }
+
+      if (isUndefined(this.startTime)) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidState,
+          "Timespan not running."
+        );
+        return;
+      }
+
+      const elapsed = stopTime - this.startTime;
       this.startTime = undefined;
-      return;
-    }
 
-    if (isUndefined(this.startTime)) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidState,
-        "Timespan not running."
-      );
-      return;
-    }
+      if (elapsed < 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidState,
+          "Timespan was negative."
+        );
+        return;
+      }
 
-    const elapsed = stopTime - this.startTime;
-    this.startTime = undefined;
-
-    if (elapsed < 0) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidState,
-        "Timespan was negative."
-      );
-      return;
-    }
-
-    this.setRawSync(elapsed);
+      this.setRawUndispatchedSync(elapsed);
+    });
   }
 
   cancelSync(): void {
-    this.startTime = undefined;
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      this.startTime = undefined;
+    });
   }
 
   setRawNanosSync(elapsed: number): void {
     // `elapsed` is in nanoseconds in order to match the glean-core API.
     const elapsedMillis = elapsed * 10 ** -6;
-    this.setRawSync(elapsedMillis);
+    this.setRawUndispatchedSync(elapsedMillis);
+  }
+
+  /**
+   * A synchronous implementation of `setRaw` that does not dispatch the recording task.
+   *
+   * # Important
+   *
+   * This method should **never** be exposed to users.
+   *
+   * @param elapsed The elapsed time to record, in milliseconds.
+   */
+  setRawUndispatchedSync(elapsed: number): void {
+    this.setRawSync(elapsed);
   }
 
   setRawSync(elapsed: number) {

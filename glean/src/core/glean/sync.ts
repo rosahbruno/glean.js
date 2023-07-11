@@ -2,8 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { CLIENT_INFO_STORAGE, KNOWN_CLIENT_ID } from "../constants.js";
 import type { ConfigurationInterface } from "../config.js";
+import type PlatformSync from "../../platform/sync.js";
+import type DispatcherSync from "../dispatcher/sync.js";
+
+import { CLIENT_INFO_STORAGE, KNOWN_CLIENT_ID } from "../constants.js";
 import { Configuration } from "../config.js";
 import PingUploadManager from "../upload/manager/sync.js";
 import { isBoolean, isString, sanitizeApplicationId } from "../utils.js";
@@ -13,7 +16,6 @@ import { DatetimeMetric } from "../metrics/types/datetime.js";
 import CorePings from "../internal_pings.js";
 import { registerPluginToEvent } from "../events/utils/sync.js";
 import ErrorManagerSync from "../error/sync.js";
-import type PlatformSync from "../../platform/sync.js";
 import { Lifetime } from "../metrics/lifetime.js";
 import { Context } from "../context.js";
 import log, { LoggingLevel } from "../log.js";
@@ -148,6 +150,77 @@ namespace Glean {
     uploadEnabled: boolean,
     config?: ConfigurationInterface
   ): void {
+    try {
+      const dbRequest = window.indexedDB.open("Glean");
+      dbRequest.onerror = () => {
+        log(LOG_TAG, ["Unable to open Glean database.", dbRequest.error]);
+      };
+
+      // If we can open IDB, we use the existing client_id as part of the migration.
+      dbRequest.onsuccess = () => {
+        const db = dbRequest.result;
+        const transaction = db?.transaction("Main", "readwrite");
+        const store = transaction.objectStore("Main");
+
+        // Get all keys and update LocalStorage.
+        const reqAllKeys = store.getAllKeys();
+        reqAllKeys.onsuccess = () => {
+          reqAllKeys.result.forEach((key: IDBValidKey) => {
+            const keyReq = store.get(key);
+            keyReq.onsuccess = () => {
+              if (!!keyReq.result) {
+                console.log(key);
+                console.log(JSON.stringify(keyReq.result));
+                localStorage.setItem(key as string, JSON.stringify(keyReq.result));
+              }
+            };
+          });
+        };
+
+        // Client ID
+        //
+        // const req = store.get("userLifetimeMetrics");
+        // req.onsuccess = () => {
+        //   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        //   const clientId = req.result?.["glean_client_info"]?.["uuid"]?.["client_id"] as string;
+        //   console.log(clientId);
+        //   if (!!clientId) {
+        //     this.clientId.set(clientId);
+        //   }
+        // };
+
+        // req.onerror = () => {
+        //   console.log("req.onerror");
+        // };
+      };
+    } catch (e) {
+      initializeInner(applicationId, uploadEnabled, config);
+    }
+
+    // const migrationFlag = window.localStorage.getItem("GLEAN_MIGRATION_FLAG");
+    // if (migrationFlag === "1") {
+    //   initializeInner(applicationId, uploadEnabled, config);
+    // } else {
+    //   // TODO
+    //   // Load values from IDB, THEN inside a callback, execute `initializeInner()`.
+
+    //   initializeInner(applicationId, uploadEnabled, config);
+    //   window.localStorage.setItem("GLEAN_MIGRATION_FLAG", "1");
+    // }
+  }
+
+  /**
+   * Inner work for initialize.
+   *
+   * @param applicationId The application ID.
+   * @param uploadEnabled Determines whether telemetry is enabled.
+   * @param config Glean configuration options.
+   */
+  function initializeInner(
+    applicationId: string,
+    uploadEnabled: boolean,
+    config?: ConfigurationInterface
+  ): void {
     if (Context.initialized) {
       log(
         LOG_TAG,
@@ -215,66 +288,68 @@ namespace Glean {
       }
     }
 
-    Context.initialized = true;
+    (Context.dispatcher as DispatcherSync).flushInit(() => {
+      Context.initialized = true;
 
-    Context.uploadEnabled = uploadEnabled;
+      Context.uploadEnabled = uploadEnabled;
 
-    // Initialize the events database.
-    //
-    // It's important this happens _after_ the upload state is set,
-    // because initializing the events database may record the execution_counter and
-    // glean.restarted metrics. If the upload state is not defined these metrics cannot be recorded.
-    //
-    // This may also submit an 'events' ping,
-    // so it also needs to happen before application lifetime metrics are cleared.
-    Context.eventsDatabase.initialize();
-
-    // The upload enabled flag may have changed since the last run, for
-    // example by the changing of a config file.
-    if (uploadEnabled) {
-      // IMPORTANT!
-      // Any pings we want to send upon initialization should happen before this line.
+      // Initialize the events database.
       //
-      // Clear application lifetime metrics.
+      // It's important this happens _after_ the upload state is set,
+      // because initializing the events database may record the execution_counter and
+      // glean.restarted metrics. If the upload state is not defined these metrics cannot be recorded.
       //
-      // If upload is disabled we don't need to do this,
-      // all metrics will be cleared anyways and we want
-      // application lifetime metrics intact in case
-      // we need to send a deletion-request ping.
-      Context.metricsDatabase.clear(Lifetime.Application);
+      // This may also submit an 'events' ping,
+      // so it also needs to happen before application lifetime metrics are cleared.
+      (Context.eventsDatabase as EventsDatabaseSync).initialize();
 
-      // If upload is enabled,
-      // just follow the normal code path to instantiate the core metrics.
-      onUploadEnabled();
-    } else {
-      // If upload is disabled, and we've never run before, only set the
-      // client_id to KNOWN_CLIENT_ID, but do not send a deletion request
-      // ping.
-      // If we have run before, and if the client_id is not equal to
-      // the KNOWN_CLIENT_ID, do the full upload disabled operations to
-      // clear metrics, set the client_id to KNOWN_CLIENT_ID, and send a
-      // deletion request ping.
-      const clientId = Context.metricsDatabase.getMetric(
-        CLIENT_INFO_STORAGE,
-        Context.coreMetrics.clientId
-      );
+      // The upload enabled flag may have changed since the last run, for
+      // example by the changing of a config file.
+      if (uploadEnabled) {
+        // IMPORTANT!
+        // Any pings we want to send upon initialization should happen before this line.
+        //
+        // Clear application lifetime metrics.
+        //
+        // If upload is disabled we don't need to do this,
+        // all metrics will be cleared anyways and we want
+        // application lifetime metrics intact in case
+        // we need to send a deletion-request ping.
+        (Context.metricsDatabase as MetricsDatabaseSync).clear(Lifetime.Application);
 
-      if (clientId) {
-        if (clientId !== KNOWN_CLIENT_ID) {
-          onUploadDisabled(true);
-        }
+        // If upload is enabled,
+        // just follow the normal code path to instantiate the core metrics.
+        onUploadEnabled();
       } else {
-        // Call `clearMetrics` directly here instead of `onUploadDisabled` to avoid sending
-        // a deletion-request ping for a user that has already done that.
-        clearMetrics();
-      }
-    }
+        // If upload is disabled, and we've never run before, only set the
+        // client_id to KNOWN_CLIENT_ID, but do not send a deletion request
+        // ping.
+        // If we have run before, and if the client_id is not equal to
+        // the KNOWN_CLIENT_ID, do the full upload disabled operations to
+        // clear metrics, set the client_id to KNOWN_CLIENT_ID, and send a
+        // deletion request ping.
+        const clientId = Context.metricsDatabase.getMetric(
+          CLIENT_INFO_STORAGE,
+          Context.coreMetrics.clientId
+        );
 
-    // We only scan the pending pings **after** dealing with the upload state.
-    // If upload is disabled, pending pings files are deleted
-    // so we need to know that state **before** scanning the pending pings
-    // to ensure we don't enqueue pings before their files are deleted.
-    Context.pingsDatabase.scanPendingPings();
+        if (clientId) {
+          if (clientId !== KNOWN_CLIENT_ID) {
+            onUploadDisabled(true);
+          }
+        } else {
+          // Call `clearMetrics` directly here instead of `onUploadDisabled` to avoid sending
+          // a deletion-request ping for a user that has already done that.
+          clearMetrics();
+        }
+      }
+
+      // We only scan the pending pings **after** dealing with the upload state.
+      // If upload is disabled, pending pings files are deleted
+      // so we need to know that state **before** scanning the pending pings
+      // to ensure we don't enqueue pings before their files are deleted.
+      (Context.pingsDatabase as PingsDatabaseSync).scanPendingPings();
+    });
   }
 
   /**
@@ -314,13 +389,15 @@ namespace Glean {
       return;
     }
 
-    if (Context.uploadEnabled !== flag) {
-      if (flag) {
-        onUploadEnabled();
-      } else {
-        onUploadDisabled(false);
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (Context.uploadEnabled !== flag) {
+        if (flag) {
+          onUploadEnabled();
+        } else {
+          onUploadDisabled(false);
+        }
       }
-    }
+    });
   }
 
   /**
@@ -335,7 +412,9 @@ namespace Glean {
       // Cache value to apply during init.
       preInitLogPings = flag;
     } else {
-      Context.config.logPings = flag;
+      (Context.dispatcher as DispatcherSync).launch(() => {
+        Context.config.logPings = flag;
+      });
     }
   }
 
@@ -353,7 +432,9 @@ namespace Glean {
       // Cache value to apply during init.
       preInitDebugViewTag = value;
     } else {
-      Context.config.debugViewTag = value;
+      (Context.dispatcher as DispatcherSync).launch(() => {
+        Context.config.debugViewTag = value;
+      });
     }
   }
 
@@ -372,7 +453,9 @@ namespace Glean {
       // Cache value to apply during init.
       preInitSourceTags = value;
     } else {
-      Context.config.sourceTags = value;
+      (Context.dispatcher as DispatcherSync).launch(() => {
+        Context.config.sourceTags = value;
+      });
     }
   }
 
@@ -383,6 +466,7 @@ namespace Glean {
    */
   export function shutdown(): void {
     log(LOG_TAG, "Calling shutdown for the Glean web implementation is a no-op. Ignoring.");
+    (Context.dispatcher as DispatcherSync).shutdown();
     return;
   }
 

@@ -6,6 +6,7 @@ import type { CommonMetricData } from "../index.js";
 import type { MetricValidationResult } from "../metric.js";
 import type ErrorManagerSync from "../../error/sync.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { MetricType } from "../index.js";
 import { testOnlyCheck } from "../../utils.js";
@@ -95,6 +96,10 @@ class InternalQuantityMetricType extends MetricType {
 
   /// SYNC ///
   setSync(value: number) {
+    (Context.dispatcher as DispatcherSync).launch(() => this.setUndispatchedSync(value));
+  }
+
+  setUndispatchedSync(value: number) {
     if (!this.shouldRecord(Context.uploadEnabled)) {
       return;
     }

@@ -7,17 +7,16 @@ import type { MetricValidationResult } from "../metric.js";
 import type { JSONValue } from "../../utils.js";
 import type ErrorManagerSync from "../../error/sync.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { MetricType } from "../index.js";
 import { Context } from "../../context.js";
-
 import { Metric, MetricValidation, MetricValidationError } from "../metric.js";
 import {
   testOnlyCheck,
   truncateStringAtBoundaryWithError,
   truncateStringAtBoundaryWithErrorSync
 } from "../../utils.js";
-
 import { ErrorType } from "../../error/error_type.js";
 import log from "../../log.js";
 import { validateString } from "../utils.js";
@@ -183,58 +182,66 @@ class InternalStringListMetricType extends MetricType {
 
   /// SYNC ///
   setSync(value: string[]) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
-
-    try {
-      if (value.length > MAX_LIST_LENGTH) {
-        (Context.errorManager as ErrorManagerSync).record(
-          this,
-          ErrorType.InvalidValue,
-          `String list length of ${value.length} exceeds maximum of ${MAX_LIST_LENGTH}.`
-        );
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
       }
 
-      // Create metric here, in order to run the validations and throw in case input in invalid.
-      const metric = new StringListMetric(value);
+      try {
+        if (value.length > MAX_LIST_LENGTH) {
+          (Context.errorManager as ErrorManagerSync).record(
+            this,
+            ErrorType.InvalidValue,
+            `String list length of ${value.length} exceeds maximum of ${MAX_LIST_LENGTH}.`
+          );
+        }
 
-      const truncatedList: string[] = [];
-      for (let i = 0; i < Math.min(value.length, MAX_LIST_LENGTH); ++i) {
-        const truncatedString = truncateStringAtBoundaryWithErrorSync(
-          this,
-          value[i],
-          MAX_STRING_LENGTH
-        );
-        truncatedList.push(truncatedString);
-      }
+        // Create metric here, in order to run the validations and throw in case input in invalid.
+        const metric = new StringListMetric(value);
 
-      metric.set(truncatedList);
-      (Context.metricsDatabase as MetricsDatabaseSync).record(this, metric);
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+        const truncatedList: string[] = [];
+        for (let i = 0; i < Math.min(value.length, MAX_LIST_LENGTH); ++i) {
+          const truncatedString = truncateStringAtBoundaryWithErrorSync(
+            this,
+            value[i],
+            MAX_STRING_LENGTH
+          );
+          truncatedList.push(truncatedString);
+        }
+
+        metric.set(truncatedList);
+        (Context.metricsDatabase as MetricsDatabaseSync).record(this, metric);
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
       }
-    }
+    });
   }
 
   addSync(value: string) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
-
-    try {
-      const truncatedValue = truncateStringAtBoundaryWithErrorSync(this, value, MAX_STRING_LENGTH);
-
-      (Context.metricsDatabase as MetricsDatabaseSync).transform(
-        this,
-        this.addTransformFn(truncatedValue)
-      );
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
       }
-    }
+
+      try {
+        const truncatedValue = truncateStringAtBoundaryWithErrorSync(
+          this,
+          value,
+          MAX_STRING_LENGTH
+        );
+
+        (Context.metricsDatabase as MetricsDatabaseSync).transform(
+          this,
+          this.addTransformFn(truncatedValue)
+        );
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
+      }
+    });
   }
 
   /// TESTING ///

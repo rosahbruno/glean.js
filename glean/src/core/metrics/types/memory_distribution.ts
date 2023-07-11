@@ -9,6 +9,7 @@ import type { CommonMetricData } from "../index.js";
 import type { JSONValue } from "../../utils.js";
 import type ErrorManagerSync from "../../error/sync.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { MetricType } from "../index.js";
 import { Metric, MetricValidation, MetricValidationError } from "../metric.js";
@@ -217,71 +218,75 @@ class InternalMemoryDistributionMetricType extends MetricType {
 
   /// SYNC ///
   accumulateSync(sample: number) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
-
-    if (sample < 0) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidValue,
-        "Accumulated a negative sample"
-      );
-      return;
-    }
-
-    let convertedSample = convertMemoryUnitToBytes(sample, this.memoryUnit as MemoryUnit);
-
-    if (sample > MAX_BYTES) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidValue,
-        "Sample is bigger than 1 terabyte."
-      );
-      convertedSample = MAX_BYTES;
-    }
-
-    try {
-      (Context.metricsDatabase as MetricsDatabaseSync).transform(
-        this,
-        this.accumulateTransformFn(convertedSample)
-      );
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
       }
-    }
+
+      if (sample < 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidValue,
+          "Accumulated a negative sample"
+        );
+        return;
+      }
+
+      let convertedSample = convertMemoryUnitToBytes(sample, this.memoryUnit as MemoryUnit);
+
+      if (sample > MAX_BYTES) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidValue,
+          "Sample is bigger than 1 terabyte."
+        );
+        convertedSample = MAX_BYTES;
+      }
+
+      try {
+        (Context.metricsDatabase as MetricsDatabaseSync).transform(
+          this,
+          this.accumulateTransformFn(convertedSample)
+        );
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
+      }
+    });
   }
 
   accumulateSamplesSync(samples: number[]) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
+      }
 
-    (Context.metricsDatabase as MetricsDatabaseSync).transform(
-      this,
-      this.accumulateSamplesTransformFn(samples)
-    );
-
-    const numNegativeSamples = getNumNegativeSamples(samples);
-    if (numNegativeSamples > 0) {
-      (Context.errorManager as ErrorManagerSync).record(
+      (Context.metricsDatabase as MetricsDatabaseSync).transform(
         this,
-        ErrorType.InvalidValue,
-        `Accumulated ${numNegativeSamples} negative samples`,
-        numNegativeSamples
+        this.accumulateSamplesTransformFn(samples)
       );
-    }
 
-    const numTooLongSamples = getNumTooLongSamples(samples, MAX_BYTES);
-    if (numTooLongSamples > 0) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidValue,
-        `Accumulated ${numTooLongSamples} larger than 1TB`,
-        numTooLongSamples
-      );
-    }
+      const numNegativeSamples = getNumNegativeSamples(samples);
+      if (numNegativeSamples > 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidValue,
+          `Accumulated ${numNegativeSamples} negative samples`,
+          numNegativeSamples
+        );
+      }
+
+      const numTooLongSamples = getNumTooLongSamples(samples, MAX_BYTES);
+      if (numTooLongSamples > 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidValue,
+          `Accumulated ${numTooLongSamples} larger than 1TB`,
+          numTooLongSamples
+        );
+      }
+    });
   }
 
   /// TESTING ///

@@ -2,11 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import type CommonPingData from "./common_ping_data.js";
+import type DispatcherSync from "../dispatcher/sync.js";
+
 import { DELETION_REQUEST_PING_NAME } from "../constants.js";
 import { generateUUIDv4, testOnlyCheck } from "../utils.js";
 import collectAndStorePing from "../pings/maker/async.js";
 import collectAndStorePingSync from "../pings/maker/sync.js";
-import type CommonPingData from "./common_ping_data.js";
 import { Context } from "../context.js";
 import log, { LoggingLevel } from "../log.js";
 
@@ -163,7 +165,13 @@ export class InternalPingType implements CommonPingData {
     }
   }
 
-  private internalSubmitSync(reason?: string, testResolver?: PromiseCallback) {
+  private internalSubmitSync(reason?: string, testResolver?: PromiseCallback): void {
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      this.submitUndispatchedSync(reason, testResolver);
+    });
+  }
+
+  private submitUndispatchedSync(reason?: string, testResolver?: PromiseCallback) {
     if (!Context.initialized) {
       log(LOG_TAG, "Glean must be initialized before submitting pings.", LoggingLevel.Info);
       return;

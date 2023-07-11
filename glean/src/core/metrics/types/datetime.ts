@@ -5,6 +5,7 @@
 import type { CommonMetricData } from "../index.js";
 import type { MetricValidationResult } from "../metric.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { MetricType } from "../index.js";
 import TimeUnit from "../../metrics/time_unit.js";
@@ -267,6 +268,10 @@ export class InternalDatetimeMetricType extends MetricType {
 
   /// SYNC ///
   setSync(value?: Date) {
+    (Context.dispatcher as DispatcherSync).launch(() => this.setUndispatchedSync(value));
+  }
+
+  setUndispatchedSync(value?: Date): void {
     if (!this.shouldRecord(Context.uploadEnabled)) {
       return;
     }

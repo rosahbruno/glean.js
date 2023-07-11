@@ -5,6 +5,7 @@
 import type { CommonMetricData } from "../index.js";
 import type { MetricValidationResult } from "../metric.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import {
   testOnlyCheck,
@@ -132,28 +133,30 @@ class InternalUrlMetricType extends MetricType {
 
   /// SYNC ///
   setSync(url: string) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
-
-    let formattedUrl;
-    if (url.length > URL_MAX_LENGTH) {
-      // URL is longer than our max length, so we truncate extra characters
-      // and report an error. BUT, we still pass the truncated URL.
-      formattedUrl = truncateStringAtBoundaryWithErrorSync(this, url, URL_MAX_LENGTH);
-    } else {
-      // do nothing, our original URL does not overflow
-      formattedUrl = url;
-    }
-
-    try {
-      const metric = new UrlMetric(formattedUrl);
-      (Context.metricsDatabase as MetricsDatabaseSync).record(this, metric);
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
       }
-    }
+
+      let formattedUrl;
+      if (url.length > URL_MAX_LENGTH) {
+        // URL is longer than our max length, so we truncate extra characters
+        // and report an error. BUT, we still pass the truncated URL.
+        formattedUrl = truncateStringAtBoundaryWithErrorSync(this, url, URL_MAX_LENGTH);
+      } else {
+        // do nothing, our original URL does not overflow
+        formattedUrl = url;
+      }
+
+      try {
+        const metric = new UrlMetric(formattedUrl);
+        (Context.metricsDatabase as MetricsDatabaseSync).record(this, metric);
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
+      }
+    });
   }
 
   /// TESTING ///

@@ -5,6 +5,7 @@
 import type { CommonMetricData } from "../index.js";
 import type { MetricValidationResult } from "../metric.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { MetricType } from "../index.js";
 import { generateUUIDv4, testOnlyCheck } from "../../utils.js";
@@ -116,6 +117,10 @@ export class InternalUUIDMetricType extends MetricType {
 
   /// SYNC ///
   setSync(value: string) {
+    (Context.dispatcher as DispatcherSync).launch(() => this.setUndispatchedSync(value));
+  }
+
+  setUndispatchedSync(value: string) {
     if (!this.shouldRecord(Context.uploadEnabled)) {
       return;
     }

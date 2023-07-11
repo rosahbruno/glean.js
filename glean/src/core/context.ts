@@ -25,7 +25,9 @@ import type CorePings from "./internal_pings.js";
 import type { Metric } from "./metrics/metric.js";
 import type { JSONValue } from "./utils.js";
 
-import Dispatcher from "./dispatcher.js";
+import Dispatcher from "./dispatcher/async.js";
+import DispatcherSync from "./dispatcher/sync.js";
+
 import log, { LoggingLevel } from "./log.js";
 
 const LOG_TAG = "core.Context";
@@ -45,8 +47,7 @@ const LOG_TAG = "core.Context";
 export class Context {
   private static _instance?: Context;
 
-  // The dispatcher is only used with the non-web (async) implementation.
-  private dispatcher: Dispatcher;
+  private dispatcher!: Dispatcher | DispatcherSync;
 
   private platform!: Platform | PlatformSync;
   private corePings!: CorePings;
@@ -99,7 +100,15 @@ export class Context {
     Context._instance = undefined;
   }
 
-  static get dispatcher(): Dispatcher {
+  static get dispatcher(): Dispatcher | DispatcherSync {
+    if (typeof Context.instance.dispatcher === "undefined") {
+      if (this.isPlatformSync()) {
+        Context.instance.dispatcher = new DispatcherSync();
+      } else {
+        Context.instance.dispatcher = new Dispatcher();
+      }
+    }
+
     return Context.instance.dispatcher;
   }
 

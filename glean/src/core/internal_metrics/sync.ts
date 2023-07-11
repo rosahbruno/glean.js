@@ -150,28 +150,76 @@ export class CoreMetricsSync {
    * or if the current value is corrupted.
    */
   private initializeClientId(): void {
-    let needNewClientId = false;
-    const clientIdData = (Context.metricsDatabase as MetricsDatabaseSync).getMetric(
-      CLIENT_INFO_STORAGE,
-      this.clientId
-    );
-    if (clientIdData) {
+    const dbRequest = window.indexedDB.open("Glean");
+
+    // If opening the database errors, Glean.initialize will throw and nothing else will happen.
+    // TODO: Figure out if we should actually retry here (Bug 1737595).
+    dbRequest.onerror = () => {
+      log(LOG_TAG, ["Unable to open Glean database.", dbRequest.error]);
+    };
+
+    // If we can open IDB, we use the existing client_id as part of the migration.
+    dbRequest.onsuccess = () => {
       try {
-        const currentClientId = createMetric("uuid", clientIdData);
-        if (currentClientId.payload() === KNOWN_CLIENT_ID) {
+        const db = dbRequest.result;
+        const transaction = db?.transaction("Main", "readwrite");
+        const store = transaction.objectStore("Main");
+        const req = store.get("userLifetimeMetrics");
+
+        // Get all keys and update LocalStorage.
+        const reqAllKeys = store.getAllKeys();
+        reqAllKeys.onsuccess = () => {
+          reqAllKeys.result.forEach((key: IDBValidKey) => {
+            const keyReq = store.get(key);
+            keyReq.onsuccess = () => {
+              if (!!keyReq.result) {
+                console.log(key);
+                console.log(JSON.stringify(keyReq.result));
+              }
+            };
+          });
+        };
+
+        req.onsuccess = () => {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          const clientId = req.result?.["glean_client_info"]?.["uuid"]?.["client_id"] as string;
+          console.log(clientId);
+          if (!!clientId) {
+            this.clientId.set(clientId);
+          }
+        };
+
+        req.onerror = () => {
+          console.log("req.onerror");
+        };
+      } catch {
+        // Catch is called if
+        // 1. An object store isn't found
+        // 2. There is an issue reading from IDB
+        let needNewClientId = false;
+        const clientIdData = (Context.metricsDatabase as MetricsDatabaseSync).getMetric(
+          CLIENT_INFO_STORAGE,
+          this.clientId
+        );
+        if (clientIdData) {
+          try {
+            const currentClientId = createMetric("uuid", clientIdData);
+            if (currentClientId.payload() === KNOWN_CLIENT_ID) {
+              needNewClientId = true;
+            }
+          } catch {
+            log(LOG_TAG, "Unexpected value found for Glean clientId. Ignoring.", LoggingLevel.Warn);
+            needNewClientId = true;
+          }
+        } else {
           needNewClientId = true;
         }
-      } catch {
-        log(LOG_TAG, "Unexpected value found for Glean clientId. Ignoring.", LoggingLevel.Warn);
-        needNewClientId = true;
-      }
-    } else {
-      needNewClientId = true;
-    }
 
-    if (needNewClientId) {
-      this.clientId.set(generateUUIDv4());
-    }
+        if (needNewClientId) {
+          this.clientId.set(generateUUIDv4());
+        }
+      }
+    };
   }
 
   /**

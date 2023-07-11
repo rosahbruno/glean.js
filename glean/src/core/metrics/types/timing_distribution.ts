@@ -9,6 +9,7 @@ import type TimeUnit from "../time_unit.js";
 import type { DistributionData } from "../distributions.js";
 import type ErrorManagerSync from "../../error/sync.js";
 import type MetricsDatabaseSync from "../database/sync.js";
+import type DispatcherSync from "../../dispatcher/sync.js";
 
 import { MetricType } from "../index.js";
 import { Context } from "../../context.js";
@@ -380,118 +381,126 @@ class InternalTimingDistributionMetricType extends MetricType {
 
   /// SYNC ///
   setStartSync(id: number, startTime: number) {
-    this.startTimes[id] = startTime;
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      this.startTimes[id] = startTime;
+    });
   }
 
   setStopAndAccumulateSync(id: number, stopTime: number) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      delete this.startTimes[id];
-      return;
-    }
-
-    const startTime = this.startTimes[id];
-    if (startTime !== undefined) {
-      delete this.startTimes[id];
-    } else {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidState,
-        "Timing not running"
-      );
-      return;
-    }
-
-    // Duration is in nanoseconds.
-    let duration = stopTime - startTime;
-    if (duration < 0) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidValue,
-        "Timer stopped with negative duration"
-      );
-      return;
-    }
-
-    const minSampleTime = convertTimeUnitToNanos(1, this.timeUnit as TimeUnit);
-    const maxSampleTime = convertTimeUnitToNanos(MAX_SAMPLE_TIME, this.timeUnit as TimeUnit);
-
-    if (duration < minSampleTime) {
-      // If measurement is less than the minimum, just truncate. This is
-      // not recorded as an error.
-      duration = minSampleTime;
-    } else if (duration > maxSampleTime) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidState,
-        `Sample is longer than the max for a timeUnit of ${this.timeUnit} (${duration} ns)`
-      );
-      duration = maxSampleTime;
-    }
-
-    try {
-      (Context.metricsDatabase as MetricsDatabaseSync).transform(
-        this,
-        this.setStopAndAccumulateTransformFn(duration)
-      );
-    } catch (e) {
-      if (e instanceof MetricValidationError) {
-        e.recordErrorSync(this);
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        delete this.startTimes[id];
+        return;
       }
-    }
+
+      const startTime = this.startTimes[id];
+      if (startTime !== undefined) {
+        delete this.startTimes[id];
+      } else {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidState,
+          "Timing not running"
+        );
+        return;
+      }
+
+      // Duration is in nanoseconds.
+      let duration = stopTime - startTime;
+      if (duration < 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidValue,
+          "Timer stopped with negative duration"
+        );
+        return;
+      }
+
+      const minSampleTime = convertTimeUnitToNanos(1, this.timeUnit as TimeUnit);
+      const maxSampleTime = convertTimeUnitToNanos(MAX_SAMPLE_TIME, this.timeUnit as TimeUnit);
+
+      if (duration < minSampleTime) {
+        // If measurement is less than the minimum, just truncate. This is
+        // not recorded as an error.
+        duration = minSampleTime;
+      } else if (duration > maxSampleTime) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidState,
+          `Sample is longer than the max for a timeUnit of ${this.timeUnit} (${duration} ns)`
+        );
+        duration = maxSampleTime;
+      }
+
+      try {
+        (Context.metricsDatabase as MetricsDatabaseSync).transform(
+          this,
+          this.setStopAndAccumulateTransformFn(duration)
+        );
+      } catch (e) {
+        if (e instanceof MetricValidationError) {
+          e.recordErrorSync(this);
+        }
+      }
+    });
   }
 
   setAccumulateSamplesSync(samples: number[]) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
+      }
 
-    const maxSampleTime = convertTimeUnitToNanos(MAX_SAMPLE_TIME, this.timeUnit as TimeUnit);
-    (Context.metricsDatabase as MetricsDatabaseSync).transform(
-      this,
-      this.setAccumulateSamplesTransformFn(samples, maxSampleTime)
-    );
-
-    const numNegativeSamples = getNumNegativeSamples(samples);
-    if (numNegativeSamples > 0) {
-      (Context.errorManager as ErrorManagerSync).record(
+      const maxSampleTime = convertTimeUnitToNanos(MAX_SAMPLE_TIME, this.timeUnit as TimeUnit);
+      (Context.metricsDatabase as MetricsDatabaseSync).transform(
         this,
-        ErrorType.InvalidValue,
-        `Accumulated ${numNegativeSamples} negative samples`,
-        numNegativeSamples
+        this.setAccumulateSamplesTransformFn(samples, maxSampleTime)
       );
-    }
 
-    const numTooLongSamples = getNumTooLongSamples(samples, maxSampleTime);
-    if (numTooLongSamples > 0) {
-      (Context.errorManager as ErrorManagerSync).record(
-        this,
-        ErrorType.InvalidOverflow,
-        `${numTooLongSamples} samples are longer than the maximum of ${maxSampleTime}`,
-        numTooLongSamples
-      );
-    }
+      const numNegativeSamples = getNumNegativeSamples(samples);
+      if (numNegativeSamples > 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidValue,
+          `Accumulated ${numNegativeSamples} negative samples`,
+          numNegativeSamples
+        );
+      }
+
+      const numTooLongSamples = getNumTooLongSamples(samples, maxSampleTime);
+      if (numTooLongSamples > 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidOverflow,
+          `${numTooLongSamples} samples are longer than the maximum of ${maxSampleTime}`,
+          numTooLongSamples
+        );
+      }
+    });
   }
 
   accumulateRawSamplesNanosSync(samples: number[]) {
-    if (!this.shouldRecord(Context.uploadEnabled)) {
-      return;
-    }
+    (Context.dispatcher as DispatcherSync).launch(() => {
+      if (!this.shouldRecord(Context.uploadEnabled)) {
+        return;
+      }
 
-    const maxSampleTime = convertTimeUnitToNanos(MAX_SAMPLE_TIME, this.timeUnit as TimeUnit);
-    (Context.metricsDatabase as MetricsDatabaseSync).transform(
-      this,
-      this.accumulateRawSamplesNanosTransformFn(samples, maxSampleTime)
-    );
-
-    const numTooLongSamples = getNumTooLongSamples(samples, maxSampleTime);
-    if (numTooLongSamples > 0) {
-      (Context.errorManager as ErrorManagerSync).record(
+      const maxSampleTime = convertTimeUnitToNanos(MAX_SAMPLE_TIME, this.timeUnit as TimeUnit);
+      (Context.metricsDatabase as MetricsDatabaseSync).transform(
         this,
-        ErrorType.InvalidOverflow,
-        `${numTooLongSamples} samples are longer than the maximum of ${maxSampleTime}`,
-        numTooLongSamples
+        this.accumulateRawSamplesNanosTransformFn(samples, maxSampleTime)
       );
-    }
+
+      const numTooLongSamples = getNumTooLongSamples(samples, maxSampleTime);
+      if (numTooLongSamples > 0) {
+        (Context.errorManager as ErrorManagerSync).record(
+          this,
+          ErrorType.InvalidOverflow,
+          `${numTooLongSamples} samples are longer than the maximum of ${maxSampleTime}`,
+          numTooLongSamples
+        );
+      }
+    });
   }
 
   /// TESTING ///
