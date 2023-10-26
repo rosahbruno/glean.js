@@ -2,23 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import type MetricsDatabase from "./metrics/database/async.js";
-import type MetricsDatabaseSync from "./metrics/database/sync.js";
-
-import type EventsDatabase from "./metrics/events_database/async.js";
-import type { EventsDatabaseSync } from "./metrics/events_database/sync.js";
-
-import type PingsDatabase from "./pings/database/async.js";
-import type PingsDatabaseSync from "./pings/database/sync.js";
-
-import type ErrorManager from "./error/async.js";
-import type ErrorManagerSync from "./error/sync.js";
-
-import type Platform from "../platform/async.js";
-import type PlatformSync from "../platform/sync.js";
-
-import type { CoreMetrics } from "./internal_metrics/async.js";
-import type { CoreMetricsSync } from "./internal_metrics/sync.js";
+import type MetricsDatabase from "./metrics/database.js";
+import type EventsDatabase from "./metrics/events_database/index.js";
+import type PingsDatabase from "./pings/database.js";
+import type ErrorManager from "./error.js";
+import type Platform from "../platform/index.js";
+import type { CoreMetrics } from "./internal_metrics.js";
 
 import type { Configuration } from "./config.js";
 import type CorePings from "./internal_pings.js";
@@ -48,17 +37,17 @@ export class Context {
   // The dispatcher is only used with the non-web (async) implementation.
   private dispatcher: Dispatcher;
 
-  private platform!: Platform | PlatformSync;
+  private platform!: Platform;
   private corePings!: CorePings;
-  private coreMetrics!: CoreMetrics | CoreMetricsSync;
+  private coreMetrics!: CoreMetrics;
 
   // The following group of properties are all set on Glean.initialize
   // Attempting to get them before they are set will log an error.
   private uploadEnabled!: boolean;
-  private metricsDatabase!: MetricsDatabase | MetricsDatabaseSync;
-  private eventsDatabase!: EventsDatabase | EventsDatabaseSync;
-  private pingsDatabase!: PingsDatabase | PingsDatabaseSync;
-  private errorManager!: ErrorManager | ErrorManagerSync;
+  private metricsDatabase!: MetricsDatabase;
+  private eventsDatabase!: EventsDatabase;
+  private pingsDatabase!: PingsDatabase;
+  private errorManager!: ErrorManager;
   private applicationId!: string;
   private config!: Configuration;
 
@@ -121,7 +110,7 @@ export class Context {
     Context.instance.uploadEnabled = upload;
   }
 
-  static get metricsDatabase(): MetricsDatabase | MetricsDatabaseSync {
+  static get metricsDatabase(): MetricsDatabase {
     if (typeof Context.instance.metricsDatabase === "undefined") {
       log(
         LOG_TAG,
@@ -135,11 +124,11 @@ export class Context {
     return Context.instance.metricsDatabase;
   }
 
-  static set metricsDatabase(db: MetricsDatabase | MetricsDatabaseSync) {
+  static set metricsDatabase(db: MetricsDatabase) {
     Context.instance.metricsDatabase = db;
   }
 
-  static get eventsDatabase(): EventsDatabase | EventsDatabaseSync {
+  static get eventsDatabase(): EventsDatabase {
     if (typeof Context.instance.eventsDatabase === "undefined") {
       log(
         LOG_TAG,
@@ -153,11 +142,11 @@ export class Context {
     return Context.instance.eventsDatabase;
   }
 
-  static set eventsDatabase(db: EventsDatabase | EventsDatabaseSync) {
+  static set eventsDatabase(db: EventsDatabase) {
     Context.instance.eventsDatabase = db;
   }
 
-  static get pingsDatabase(): PingsDatabase | PingsDatabaseSync {
+  static get pingsDatabase(): PingsDatabase {
     if (typeof Context.instance.pingsDatabase === "undefined") {
       log(
         LOG_TAG,
@@ -171,11 +160,11 @@ export class Context {
     return Context.instance.pingsDatabase;
   }
 
-  static set pingsDatabase(db: PingsDatabase | PingsDatabaseSync) {
+  static set pingsDatabase(db: PingsDatabase) {
     Context.instance.pingsDatabase = db;
   }
 
-  static get errorManager(): ErrorManager | ErrorManagerSync {
+  static get errorManager(): ErrorManager {
     if (typeof Context.instance.errorManager === "undefined") {
       log(
         LOG_TAG,
@@ -189,7 +178,7 @@ export class Context {
     return Context.instance.errorManager;
   }
 
-  static set errorManager(db: ErrorManager | ErrorManagerSync) {
+  static set errorManager(db: ErrorManager) {
     Context.instance.errorManager = db;
   }
 
@@ -257,19 +246,19 @@ export class Context {
     Context.instance.corePings = pings;
   }
 
-  static get coreMetrics(): CoreMetrics | CoreMetricsSync {
+  static get coreMetrics(): CoreMetrics {
     return Context.instance.coreMetrics;
   }
 
-  static set coreMetrics(metrics: CoreMetrics | CoreMetricsSync) {
+  static set coreMetrics(metrics: CoreMetrics) {
     Context.instance.coreMetrics = metrics;
   }
 
-  static set platform(platform: Platform | PlatformSync) {
+  static set platform(platform: Platform) {
     Context.instance.platform = platform;
   }
 
-  static get platform(): Platform | PlatformSync {
+  static get platform(): Platform {
     if (typeof Context.instance.platform === "undefined") {
       log(
         LOG_TAG,
@@ -285,10 +274,6 @@ export class Context {
 
   static isPlatformSet(): boolean {
     return !!Context.instance.platform;
-  }
-
-  static isPlatformSync(): boolean {
-    return Context.instance.platform?.name === "web";
   }
 
   static getSupportedMetric(

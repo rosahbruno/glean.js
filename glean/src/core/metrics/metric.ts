@@ -4,10 +4,9 @@
 
 import type { JSONValue } from "../utils.js";
 import type { MetricType } from "./index.js";
-import type ErrorManagerSync from "../error/sync.js";
 
 import { Context } from "../context.js";
-import { ErrorType } from "../error/error_type.js";
+import { ErrorType } from "../error.js";
 
 export enum MetricValidation {
   Success,
@@ -29,12 +28,8 @@ export class MetricValidationError extends Error {
     }
   }
 
-  async recordError(metric: MetricType) {
-    await Context.errorManager.record(metric, this.type, this.message);
-  }
-
-  recordErrorSync(metric: MetricType) {
-    (Context.errorManager as ErrorManagerSync).record(metric, this.type, this.message);
+  recordError(metric: MetricType) {
+    Context.errorManager.record(metric, this.type, this.message);
   }
 }
 
