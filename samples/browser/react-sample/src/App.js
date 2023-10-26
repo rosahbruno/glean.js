@@ -7,11 +7,15 @@ import "./App.css";
 import useGlean from "./glean/useGlean";
 
 function App() {
-  const metrics = useGlean();
+  const { page, metrics } = useGlean();
 
   useEffect(() => {
-    metrics.pageLoad.record();
-  }, [metrics]);
+    page.load.record({
+      url: window.location.href,
+      referrer: document.referrer,
+      title: document.title
+    });
+  }, [metrics, page]);
 
   const onButtonClick = () => {
     metrics.buttonClick.record({

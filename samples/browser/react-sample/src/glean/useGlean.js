@@ -6,6 +6,7 @@ import { useEffect } from "react";
 
 import Glean from "@mozilla/glean/web";
 import * as metrics from "./generated/appEvents";
+import * as page from "../built_in_glean/generated/page";
 
 const APP_NAME = "glean-react-sample";
 
@@ -19,7 +20,10 @@ const useGlean = () => {
     });
   }, []);
 
-  return metrics;
+  return {
+    metrics,
+    page
+  };
 };
 
 export default useGlean;
