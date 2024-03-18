@@ -1,0 +1,22 @@
+{
+  "name": "ssr",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "link:glean": "cd ../../../glean && npm i && npm run build && npm link && cd ../samples/browser/ssr && npm link @mozilla/glean",
+    "build:glean": "glean translate src/metrics.yaml -f javascript -o src/generated",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "react": "^18",
+    "react-dom": "^18",
+    "next": "14.0.4"
+  },
+  "devDependencies": {
+    "eslint": "^8",
+    "eslint-config-next": "14.0.4"
+  }
+}
